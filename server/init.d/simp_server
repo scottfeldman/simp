@@ -1,0 +1,37 @@
+#! /bin/bash
+
+### BEGIN INIT INFO
+# Provides:          simp_server
+# Required-Start:
+# Required-Stop: 
+# Should-Start:      $local_fs
+# Should-Stop:       $local_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Linux Simulation Server
+### END INIT INFO
+
+case "$1" in
+	start)
+		/usr/bin/python /usr/lib/python2.7/dist-packages/simp_server.py &
+                echo $! >/var/run/simp_server.pid
+		;;
+	start_debug)
+		/usr/bin/python /usr/lib/python2.7/dist-packages/simp_server.py -l DEBUG &
+                echo $! >/var/run/simp_server.pid
+		;;
+	stop)
+                kill -SIGINT `cat /var/run/simp_server.pid`
+		;;
+	restart | force-reload)
+		$0 stop
+		sleep 2
+		$0 start
+		;;
+	*)
+		echo "Usage: /etc/init.d/simp_server {start|start_debug|stop|restart|force-reload}"
+		exit 1
+		;;
+esac
+
+exit 0

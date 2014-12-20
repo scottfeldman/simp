@@ -1,0 +1,19 @@
+BUILDING/INSTALLING
+-------------------
+
+To build debian .deb pkgs for simp, install stdeb build tools:
+
+    $ sudo apt-get install python-stdeb fakeroot python-all
+
+Build using stdeb:
+
+    $ cd simp/server
+    $ python setup.py --command-packages=stdeb.command bdist_deb
+
+    $ cd simp/client
+    $ python setup.py --command-packages=stdeb.command bdist_deb
+
+Install server and client on target system using dpkg:
+
+    $ sudo dpkg -i server/deb_dist/python-simp-server_0.1-1_all.deb
+    $ sudo dpkg -i client/deb_dist/python-simp-client_0.1-1_all.deb

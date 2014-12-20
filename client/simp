@@ -1,0 +1,284 @@
+#!/usr/bin/env python
+
+from simp_client import SimpClient
+from argparse import ArgumentParser, RawTextHelpFormatter
+from sys import exit, stdin, stdout
+from subprocess import call
+from re import match
+
+rsa = "/usr/share/simp/simp_rsa"
+
+def create(args):
+
+    dot_data = None
+    if args.dotfile:
+        with open (args.dotfile, "r") as dot_file:
+            dot_data = dot_file.read()
+
+    sim.create(args.name, dot_data, args.option)
+
+    nodes = sim.get_node_names()
+    for node in nodes:
+        sim.create_image(node)
+
+def destroy(args):
+
+    sims = sim.get_sim_list()
+    for s in sims:
+        if match(args.name, s):
+            sim.attach(s)
+            sim.destroy()
+
+def start(args):
+
+    sim.attach(args.name)
+    nodes = sim.get_node_names()
+    for node in nodes:
+        sim.start(node)
+
+def stop(args):
+
+    sim.attach(args.name)
+    nodes = sim.get_node_names()
+    for node in nodes:
+        sim.stop(node)
+
+def ssh(args):
+
+    sim.attach(args.name)
+    node_type = sim.get_node_type(args.node)
+    if node_type == "namespace":
+        ns = args.name + '-' + args.node
+        if args.cmd:
+            cmd = "ssh -p 9001 -q -o StrictHostKeyChecking=no " \
+                "-o UserKnownHostsFile=/dev/null " \
+                "%s sudo ip netns exec %s '%s'" % \
+                (args.host, ns, args.cmd)
+        else:
+            cmd = "ssh -p 9001 -q -o StrictHostKeyChecking=no " \
+                "-o UserKnownHostsFile=/dev/null " \
+                "-t %s sudo ip netns exec %s /bin/bash" % \
+                (args.host, ns)
+        print cmd
+    else:
+        port = sim.get_ssh_port(args.node)
+        if not args.cmd: args.cmd = ""
+        cmd = "ssh -q -o StrictHostKeyChecking=no " \
+            "-o UserKnownHostsFile=/dev/null " \
+            "-i %s -p %d simp@%s '%s'" % \
+            (rsa, port, args.host, args.cmd)
+    return call(cmd, shell=True)
+
+def console(args):
+
+    sim.attach(args.name)
+    port = sim.get_console_port(args.node)
+    cmd = "telnet %s %d" % (args.host, port)
+    return call(cmd, shell=True)
+
+def monitor(args):
+
+    sim.attach(args.name)
+    port = sim.get_monitor_port(args.node)
+    cmd = "telnet %s %d" % (args.host, port)
+    return call(cmd, shell=True)
+
+def put_file(args):
+
+    sim.attach(args.name)
+    node_type = sim.get_node_type(args.node)
+    if node_type == "qemu-x86_64":
+        port = sim.get_ssh_port(args.node)
+        cmd = "scp -q -o StrictHostKeyChecking=no " \
+            "-o UserKnownHostsFile=/dev/null " \
+            "-i %s -P %d %s simp@%s:%s" % \
+            (rsa, port, args.local, args.host, args.remote)
+        return call(cmd, shell=True)
+    else:
+        raise Exception("Can't put file to node type %s" % node_type)
+
+def get_file(args):
+
+    sim.attach(args.name)
+    node_type = sim.get_node_type(args.node)
+    if node_type == "qemu-x86_64":
+        port = sim.get_ssh_port(args.node)
+        cmd = "scp -q -o StrictHostKeyChecking=no " \
+            "-o UserKnownHostsFile=/dev/null " \
+            "-i %s -P %d simp@%s:%s %s" % \
+            (rsa, port, args.host, args.remote, args.local)
+        return call(cmd, shell=True)
+    else:
+        raise Exception("Can't get file from node type %s" % node_type)
+
+class _Table(object):
+
+    def __init__(self):
+        self.data = {}
+
+    def extend(self, key_values):
+        for kv in key_values.splitlines():
+            k, v = kv.split('=')
+            self.data.setdefault(k.strip(), []).append(v.strip())
+
+    def dump(self, headings):
+        if not self.data: return
+        widths = {k:len(max([k] + v, key=len))
+            for k, v in self.data.items() if k in headings}
+        for h in headings:
+            fmt = "%%-%ds" % widths[h]
+            print fmt % h, "",
+        print
+        print '-'*(sum(widths.values()) + (len(widths)-1)*2)
+        for i in range(len(self.data[headings[0]])):
+            for h in headings:
+                fmt = "%%-%ds" % widths[h]
+                print fmt % self.data[h][i], "",
+            print
+
+def get_sim_list(args):
+
+    sims = sim.get_sim_list()
+    if args.verbose:
+        table = _Table()
+        for s in sims:
+            sim.attach(s)
+            status = sim.get_status()
+            table.extend(status)
+        table.dump(["Name", "Created", "Nodes"])
+    else:
+        for s in sims:
+            print s
+
+def get_node_names(args):
+
+    sim.attach(args.name)
+    nodes = sorted(sim.get_node_names())
+    if args.verbose:
+        table = _Table()
+        for node in nodes:
+            status = sim.get_node_status(node)
+            table.extend(status)
+        table.dump(["Name", "Running?", "SSH?", "Interfaces", "Eth0 MAC",
+            "SSH Port", "Console Port", "Monitor Port"])
+    else:
+        for node in nodes:
+            print node
+
+def get_intf_names(args):
+
+    sim.attach(args.name)
+    intfs = sorted(sim.get_intf_names(args.node))
+    if args.verbose:
+        table = _Table()
+        for intf in intfs:
+            status = sim.get_intf_status(args.node, intf)
+            table.extend(status)
+        table.dump(["Name", "MAC", "Dst Port", "Src Port"])
+    else:
+        for intf in intfs:
+            print intf
+
+option_parser = ArgumentParser(add_help=False)
+option_parser.add_argument('-H', '--host', help='name of simulation host', default='localhost')
+option_parser.add_argument('-p', '--port', help='port to connect to simulation host', type=int, default=6667)
+
+parser = ArgumentParser(description="Simple Network Simulator", parents=[option_parser])
+subparsers = parser.add_subparsers(title="subcommands")
+
+parser_create = subparsers.add_parser('create', formatter_class=RawTextHelpFormatter, help='create a simulation', parents=[option_parser])
+parser_create.add_argument('name', help='simulation name')
+parser_create.add_argument('dotfile', nargs='?', help='network graph .dot file name [optional if starting base]')
+parser_create.add_argument('-o', '--option', help='''node:option:value tuple, can be repeated.
+
+OPTIONs are:
+
+type:TYPE   TYPE is one of {qemu-x86_64, dynamips,
+            physical, namespace}
+
+mem:MEMORY  MEMORY is virtual RAM size in megabytes
+
+base:IMAGE  IMAGE is base image name
+
+map:INTERFACE:HOST_INTERFACE   (physical nodes only)
+            INTERFACE is node interface name
+            HOST_INTERFACE is host server interface name
+
+rocker:NAME
+
+bin:PATH
+
+''', default=[], action="append")
+parser_create.set_defaults(func=create)
+
+parser_destroy = subparsers.add_parser('destroy', help='destroy the simulation', parents=[option_parser])
+parser_destroy.add_argument('name', help='simulation name, use quotes for regex')
+parser_destroy.set_defaults(func=destroy)
+
+parser_start = subparsers.add_parser('start', help='start the simulation', parents=[option_parser])
+parser_start.add_argument('name', help='simulation name')
+parser_start.set_defaults(func=start)
+
+parser_stop = subparsers.add_parser('stop', help='stop the simulation', parents=[option_parser])
+parser_stop.add_argument('name', help='simulation name')
+parser_stop.set_defaults(func=stop)
+
+parser_ssh = subparsers.add_parser('ssh', help='ssh to node', parents=[option_parser])
+parser_ssh.add_argument('name', help='simulation name')
+parser_ssh.add_argument('node', help='node name')
+parser_ssh.add_argument('--cmd', help='command line')
+parser_ssh.set_defaults(func=ssh)
+
+parser_console = subparsers.add_parser('console', help='telnet to node\'s console port', parents=[option_parser])
+parser_console.add_argument('name', help='simulation name')
+parser_console.add_argument('node', help='node name')
+parser_console.set_defaults(func=console)
+
+parser_monitor = subparsers.add_parser('monitor', help='telnet to node\'s monitor port', parents=[option_parser])
+parser_monitor.add_argument('name', help='simulation name')
+parser_monitor.add_argument('node', help='node name')
+parser_monitor.set_defaults(func=monitor)
+
+parser_put_file = subparsers.add_parser('put',
+    help='copy file to node', parents=[option_parser])
+parser_put_file.add_argument('name', help='simulation name')
+parser_put_file.add_argument('node', help='node name')
+parser_put_file.add_argument('local', help='local file path')
+parser_put_file.add_argument('remote', help='remote file path')
+parser_put_file.set_defaults(func=put_file)
+
+parser_get_file = subparsers.add_parser('get',
+    help='copy file from node', parents=[option_parser])
+parser_get_file.add_argument('name', help='simulation name')
+parser_get_file.add_argument('node', help='node name')
+parser_get_file.add_argument('remote', help='remote file path')
+parser_get_file.add_argument('local', help='local file path')
+parser_get_file.set_defaults(func=get_file)
+
+parser_get_sim_list = subparsers.add_parser('sims', help='get list of simulations', parents=[option_parser])
+parser_get_sim_list.add_argument('-v', '--verbose', help='show more information for each simulation', action="store_true")
+parser_get_sim_list.set_defaults(func=get_sim_list)
+
+parser_get_node_names = subparsers.add_parser('nodes', help='get list of nodes', parents=[option_parser])
+parser_get_node_names.add_argument('name', help='simulation name')
+parser_get_node_names.add_argument('-v', '--verbose', help='show more information for each node', action="store_true")
+parser_get_node_names.set_defaults(func=get_node_names)
+
+parser_get_intf_names = subparsers.add_parser('interfaces', help='get list of node\'s interfaces', parents=[option_parser])
+parser_get_intf_names.add_argument('name', help='simulation name')
+parser_get_intf_names.add_argument('node', help='node name')
+parser_get_intf_names.add_argument('-v', '--verbose', help='show more information for each interface', action="store_true")
+parser_get_intf_names.set_defaults(func=get_intf_names)
+
+args = parser.parse_args()
+
+try:
+    sim = SimpClient(args.host, args.port)
+    exit(args.func(args))
+
+except KeyboardInterrupt:
+    exit(1)
+
+except Exception as error:
+    print str(error)
+    exit(1)
