@@ -221,6 +221,19 @@ class SimpClient(socket.socket):
 
         return self._request(("get_monitor_port", self.handle, node_name))
 
+    def get_qmp_port(self, node_name):
+
+        """Return telnet port of node's KVM QMP.
+
+        Use telnet <host> <port> to telnet into node's KVM QMP.
+
+        :param node_name: Node name
+        :type node_name: String
+        :rtype: Int
+        """
+
+        return self._request(("get_qmp_port", self.handle, node_name))
+
     def get_status(self):
 
         """Return status of simulation

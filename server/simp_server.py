@@ -57,6 +57,7 @@ class SimpNode(object):
         self.ssh_port = None
         self.console_port = None
         self.monitor_port = None
+        self.qmp_port = None
         self.base_img = None
         self.started = None
 
@@ -101,6 +102,7 @@ class SimpNodeQemu(SimpNode):
         out += "SSH Port = %s\n" % self.ssh_port
         out += "Console Port = %s\n" % self.console_port
         out += "Monitor Port = %s\n" % self.monitor_port
+        out += "QMP Port = %s\n" % self.qmp_port
         out += "Eth0 MAC = %s\n" % self.eth_mac(0)
         return out
 
@@ -149,6 +151,7 @@ class SimpNodeQemu(SimpNode):
         cmd += " -nographic"
         cmd += " -serial telnet::%d,server,nowait" % self.console_port
         cmd += " -monitor telnet::%d,server,nowait" % self.monitor_port
+        cmd += " -qmp tcp::%d,server,nowait" % self.qmp_port
         cmd += " -m %s" % self.options.get("mem", "256")
         cmd += " -net nic,vlan=10,macaddr=%s,model=virtio" % self.eth_mac(0)
         cmd += " -net user,vlan=10,net=%s,hostfwd=tcp::%d-:22" % \
@@ -606,6 +609,7 @@ class SimpSim(object):
             node.ssh_port = get_locked_port()
             node.console_port = get_locked_port()
             node.monitor_port = get_locked_port()
+            node.qmp_port = get_locked_port()
             for intf in node.intfs:
                 intf.port = get_locked_port()
 
@@ -619,6 +623,7 @@ class SimpSim(object):
             release_port(node.ssh_port)
             release_port(node.console_port)
             release_port(node.monitor_port)
+            release_port(node.qmp_port)
             for intf in node.intfs:
                 release_port(intf.port)
 
@@ -824,6 +829,16 @@ class SimpServer(socket.socket):
                 (node_name, sim_name))
         return (node.monitor_port, "")
 
+    def get_qmp_port(self, args):
+
+        sim_name, node_name = args
+        sim = self.get_sim(sim_name)
+        node = self.get_node(sim, node_name)
+        if not node.running():
+            return ("", "Node '%s' in sim '%s' not running" % \
+                (node_name, sim_name))
+        return (node.qmp_port, "")
+
     def get_status(self, args):
 
         sim_name = args[0]
@@ -872,6 +887,7 @@ class SimpServer(socket.socket):
             "get_ssh_port": self.get_ssh_port,
             "get_console_port": self.get_console_port,
             "get_monitor_port": self.get_monitor_port,
+            "get_qmp_port": self.get_qmp_port,
             "get_status": self.get_status,
             "get_node_status": self.get_node_status,
             "get_intf_status": self.get_intf_status,

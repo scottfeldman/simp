@@ -83,6 +83,13 @@ def monitor(args):
     cmd = "telnet %s %d" % (args.host, port)
     return call(cmd, shell=True)
 
+def qmp(args):
+
+    sim.attach(args.name)
+    port = sim.get_qmp_port(args.node)
+    cmd = "telnet %s %d" % (args.host, port)
+    return call(cmd, shell=True)
+
 def put_file(args):
 
     sim.attach(args.name)
@@ -160,7 +167,7 @@ def get_node_names(args):
             status = sim.get_node_status(node)
             table.extend(status)
         table.dump(["Name", "Running?", "SSH?", "Interfaces", "Eth0 MAC",
-            "SSH Port", "Console Port", "Monitor Port"])
+            "SSH Port", "Console Port", "Monitor Port", "QMP Port"])
     else:
         for node in nodes:
             print node
@@ -238,6 +245,11 @@ parser_monitor = subparsers.add_parser('monitor', help='telnet to node\'s monito
 parser_monitor.add_argument('name', help='simulation name')
 parser_monitor.add_argument('node', help='node name')
 parser_monitor.set_defaults(func=monitor)
+
+parser_qmp = subparsers.add_parser('qmp', help='telnet to node\'s qmp port', parents=[option_parser])
+parser_qmp.add_argument('name', help='simulation name')
+parser_qmp.add_argument('node', help='node name')
+parser_qmp.set_defaults(func=qmp)
 
 parser_put_file = subparsers.add_parser('put',
     help='copy file to node', parents=[option_parser])
