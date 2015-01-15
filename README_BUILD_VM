@@ -1,9 +1,11 @@
 Build base VM image running debian.  This will be the base VM for the
 simulator.
 
-1) Get debian small CD amd64 image from here: https://www.debian.org/distrib/.
+1) Get debian small CD amd64 (or i386) image from here:
+https://www.debian.org/distrib/.
 
-  links http://cdimage.debian.org/debian-cd/7.7.0/amd64/iso-cd/debian-7.7.0-amd64-netinst.iso
+  links http://cdimage.debian.org/debian-cd/7.8.0/amd64/iso-cd/debian-7.8.0-amd64-netinst.iso
+  links http://cdimage.debian.org/debian-cd/7.8.0/i386/iso-cd/debian-7.8.0-i386-netinst.iso
 
 2) Create blank image
 
@@ -11,7 +13,7 @@ simulator.
 
 3) Install VM, using vnc display :11
 
-  sudo kvm -drive file=simp.img,if=virtio -cdrom debian-7.7.0-amd64-netinst.iso -m 256 -vnc :11
+  sudo kvm -drive file=simp.img,if=virtio -cdrom debian-7.8.0-amd64-netinst.iso -m 256 -vnc :11
 
 4) Connect to VM using vncviewer and manually finish install
 
@@ -51,7 +53,6 @@ localhost:5555:
 
 10) Add simp user to sudoers:
 
-  # apt-get install sudo
   # adduser simp sudo
   # visudo
 
